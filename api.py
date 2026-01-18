@@ -125,6 +125,10 @@ def inspect_safetensors(filename: str, model_type: str, is_checkpoint: bool):
                         hidden_size = unet_config.get("hidden_size", 0)
                         model_type = {3072: "klein-4b", 4096: "klein-9b"}.get(hidden_size, "dev")
 
+            # Fallback heuristic: detect Flux/Chroma by scanning tensor key names
+            if not raw_name:
+                raw_name = detect_flux_like(cfg)
+
             if not raw_name:
                 return {"base_model": "unknown"}
 
@@ -168,6 +172,31 @@ def detect_svdq(cfg: dict) -> str | None:
                 return "QwenImage"
             case "NunchakuZImageTransformer2DModel":
                 return "ZImage"
+    return None
+
+
+def detect_flux_like(cfg: dict) -> str | None:
+    """
+    Heuristic fallback detection for Flux/Chroma in safetensors files by
+    scanning tensor key names for known Flux-specific markers.
+    Returns 'Chroma' or 'Flux' when detected, otherwise None.
+    """
+    if not isinstance(cfg, dict):
+        return None
+    # Check for strong indicators first
+    for key in cfg.keys():
+        if not isinstance(key, str):
+            continue
+        k = key.lower()
+        if "distilled_guidance_layer" in k:
+            return "Chroma"
+    # More general heuristics
+    for key in cfg.keys():
+        if not isinstance(key, str):
+            continue
+        k = key.lower()
+        if "guidance" in k or "flux" in k:
+            return "Flux"
     return None
 
 
